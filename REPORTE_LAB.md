@@ -66,6 +66,82 @@ ejercicio hay permisos de lectura y escritura.
 
 
 2. Explorar el flujo de login y analizar las claims del JWT emitido.
+
+Vamos a analizar el endpoint encargado del login en nuestra api, el AuthController
+
+```java
+@PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody LoginRequest req) {
+        if (!userService.isValid(req.username(), req.password())) {
+            return ResponseEntity.status(401).body(Map.of("error", "invalid_credentials"));
+        }
+
+        Instant now = Instant.now();
+        long ttl = props.tokenTtlSeconds() != null ? props.tokenTtlSeconds() : 3600;
+        Instant exp = now.plusSeconds(ttl);
+
+        String scope = "blueprints.read blueprints.write";
+
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer(props.issuer())
+                .issuedAt(now)
+                .expiresAt(exp)
+                .subject(req.username())
+                .claim("scope", scope)
+                .build();
+
+        JwsHeader jws = JwsHeader.with(() -> "RS256").build();
+        String token = this.encoder.encode(JwtEncoderParameters.from(jws, claims)).getTokenValue();
+
+        return ResponseEntity.ok(new TokenResponse(token, "Bearer", ttl));
+    }
+```
+
+Primero que todo, verifica las credenciales, si no son válidas botan un error 401, por credenciales no autorizadas.
+```java
+if (!userService.isValid(req.username(), req.password())) {
+            return ResponseEntity.status(401).body(Map.of("error", "invalid_credentials"));
+        }
+```
+
+En este bloque, calcula el ttl (tiempo de expiracion del token) y lo compara con la hora exacta de la peticion hecha por el servidor,
+compara los tiempos y determina si el ttl sigue vigente o ya expiro, si es asi botaria otro error.
+```java
+Instant now = Instant.now();
+long ttl = props.tokenTtlSeconds() != null ? props.tokenTtlSeconds() : 3600;
+Instant exp = now.plusSeconds(ttl);
+```
+
+Luego, se asignan los scopes al usuario, como estan en una sola linea cada usuario recibe automaticamente ambos scopes.
+
+```java
+String scope = "blueprints.read blueprints.write";
+```
+
+Finalizando, se construyen los claims, tenemos en total 5 claims.
+1. iss: Quien emitio el token, en nuestra api el claim normalmente es self, ya que solo hay un unico emisor de los tokens.
+2. iat: la fecha exacta de cuando se emitio el token.
+3. exp: cuando deja de ser válido el token, se define sumandole el ttl a la hora actual.
+4. sub: es el nombre del usuario a quien pertenece el token, sirve para identificar al usuario
+5. scope: son los permisos que maneja el usuario.
+```java
+JwtClaimsSet claims = JwtClaimsSet.builder()
+                .issuer(props.issuer())
+                .issuedAt(now)
+                .expiresAt(exp)
+                .subject(req.username())
+                .claim("scope", scope)
+                .build();
+```
+Por último, se firma el token con una clave de encriptacion RSA RS256, lo convierte en un string y por ultimo
+ devuelve el token acompañado con el Bearer y el ttl.
+```java
+JwsHeader jws = JwsHeader.with(() -> "RS256").build();
+String token = this.encoder.encode(JwtEncoderParameters.from(jws, claims)).getTokenValue();
+
+return ResponseEntity.ok(new TokenResponse(token, "Bearer", ttl));
+```
+
 3. Extender los scopes (`blueprints.read`, `blueprints.write`) para controlar otros endpoints de la API, del laboratorio P1 trabajado.
 4. Modificar el tiempo de expiración del token y observar el efecto.
 5. Documentar en Swagger los endpoints de autenticación y de negocio.
