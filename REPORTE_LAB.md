@@ -8,7 +8,7 @@
 ### - Juan Camilo Cristancho Velasquez
 
 # Actividades propuestas
-1. Revisar el código de configuración de seguridad (`SecurityConfig`) e identificar cómo se definen los endpoints públicos y protegidos.
+## 1. Revisar el código de configuración de seguridad (`SecurityConfig`) e identificar cómo se definen los endpoints públicos y protegidos.
 
 En la clase SecurityConfig se definen todos los aspectos en temas de seguridad de endpoints, decodificacion de contraseñas y de tokens JWT. Para entender como
 funciona vamos a separarla por bloques.
@@ -65,7 +65,7 @@ ejercicio hay permisos de lectura y escritura.
 ```
 
 
-2. Explorar el flujo de login y analizar las claims del JWT emitido.
+## 2. Explorar el flujo de login y analizar las claims del JWT emitido.
 
 Vamos a analizar el endpoint encargado del login en nuestra api, el AuthController
 
@@ -142,7 +142,7 @@ String token = this.encoder.encode(JwtEncoderParameters.from(jws, claims)).getTo
 return ResponseEntity.ok(new TokenResponse(token, "Bearer", ttl));
 ```
 
-3. Extender los scopes (`blueprints.read`, `blueprints.write`) para controlar otros endpoints de la API, del laboratorio P1 trabajado.
+## 3. Extender los scopes (`blueprints.read`, `blueprints.write`) para controlar otros endpoints de la API, del laboratorio P1 trabajado.
 
 En el punto anterior, identificamos una problematica importante, y es que ambos usuarios, tanto el student como el assistant tienen los mismos scopes, 
 por lo cual ambos tienen acceso a todos los endpoints, para separar estos permisos debemos empezar haciendo varios cambios.
@@ -243,7 +243,7 @@ Luego pasamos a probar el usuario assistand, en el que como definimos antes, tie
 por último, para probarlo, en el metodo POST donde el usuario student no pudo usar, este nos da una respuesta exitosa.
 
 ![](docs/img/assistantPost.png)
-4. Modificar el tiempo de expiración del token y observar el efecto.
+## 4. Modificar el tiempo de expiración del token y observar el efecto.
 
 Vamos a probar cambiando el tiempo del ttl el cual se encuenta en application.yml y lo cambiamos a 60 segundos
 ```
@@ -258,4 +258,4 @@ nos aparece el error 401, confirmando asi que el token tiene una expiración y c
 
 ![](docs/img/ttl.png)
 
-5. Documentar en Swagger los endpoints de autenticación y de negocio.
+## 5. Documentar en Swagger los endpoints de autenticación y de negocio.
