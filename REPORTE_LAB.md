@@ -244,4 +244,18 @@ por último, para probarlo, en el metodo POST donde el usuario student no pudo u
 
 ![](docs/img/assistantPost.png)
 4. Modificar el tiempo de expiración del token y observar el efecto.
+
+Vamos a probar cambiando el tiempo del ttl el cual se encuenta en application.yml y lo cambiamos a 60 segundos
+```
+blueprints:
+  security:
+    issuer: "https://decsis-eci/blueprints"
+    token-ttl-seconds: 60
+```
+
+Usando las credenciales de student, al momento de hacer un GET /api/blueprints todo funciona adecuadamente; sin embargo, al pasar un minuto, 
+nos aparece el error 401, confirmando asi que el token tiene una expiración y cada vez que se hace un llamado a la API, este revisa si ya expiro.
+
+![](docs/img/ttl.png)
+
 5. Documentar en Swagger los endpoints de autenticación y de negocio.
