@@ -143,5 +143,105 @@ return ResponseEntity.ok(new TokenResponse(token, "Bearer", ttl));
 ```
 
 3. Extender los scopes (`blueprints.read`, `blueprints.write`) para controlar otros endpoints de la API, del laboratorio P1 trabajado.
+
+En el punto anterior, identificamos una problematica importante, y es que ambos usuarios, tanto el student como el assistant tienen los mismos scopes, 
+por lo cual ambos tienen acceso a todos los endpoints, para separar estos permisos debemos empezar haciendo varios cambios.
+
+Antes, el Map de usuarios solo guardaba el hash de la contraseña, y el `AuthController` asignaba el mismo scope fijo a
+cualquier usuario que iniciara sesión. Se modificó el servicio para que cada usuario tenga también sus propios permisos:
+
+```java
+public record AppUser(String passwordHash, String scopes) {}
+
+private final Map<String, AppUser> users;
+
+public InMemoryUserService(PasswordEncoder encoder) {
+    this.encoder = encoder;
+    this.users = Map.of(
+        "student",   new AppUser(encoder.encode("student123"),   "blueprints.read"),
+        "assistant", new AppUser(encoder.encode("assistant123"), "blueprints.read blueprints.write")
+    );
+}
+
+public String scopesOf(String username) {
+    AppUser u = users.get(username);
+    return u == null ? "" : u.scopes();
+}
+```
+
+El usuario student solo recibe el scope `blueprints.read`, mientras que assistant recibe `blueprints.read blueprints.write`.
+Esto convierte al scope en información real de autorización por usuario, en vez de un valor igual para todos.
+
+```java
+String scope = userService.scopesOf(req.username());
+```
+
+Antes esta línea era `String scope = "blueprints.read blueprints.write";`, fija sin importar quién hiciera login. Con el cambio,
+el claim `scope` del JWT emitido varía según el usuario autenticado. Se verificó decodificando ambos tokens en jwt.io: el de
+`student` muestra `"scope": "blueprints.read"` y el de `assistant` muestra `"scope": "blueprints.read blueprints.write"`.
+
+
+Luego, cambiamos la clase SecurityConfig, en la cual separamos los permisos de cada scope de acuerdo a su verbo HTTP, por ejemplo, para verbos
+ como GET, el scope .read es perfecto, y para verbos POST o PUT, el scope es perfecto para modificar o crear planos.
+
+```java
+.authorizeHttpRequests(auth -> auth
+    .requestMatchers("/actuator/health", "/auth/login").permitAll()
+    .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+    .requestMatchers(HttpMethod.GET, "/api/**")
+        .hasAuthority("SCOPE_blueprints.read")
+    .requestMatchers(HttpMethod.POST, "/api/**")
+        .hasAuthority("SCOPE_blueprints.write")
+    .requestMatchers(HttpMethod.PUT, "/api/**")
+        .hasAuthority("SCOPE_blueprints.write")
+    .anyRequest().authenticated()
+)
+```
+
+Para mayor seguridad en nuestra api, usamos las anotaciones de seguridad en el controller de la P1, de tal manera que verifica que esté usando el scope adecuado, 
+esto sirve como una doble proteccion, protegiendo el metodo en sí, sin importar en que ruta se invoque.
+
+```java
+@PreAuthorize("hasAuthority('SCOPE_blueprints.read')")
+@GetMapping
+public ResponseEntity<ApiResponse<Set<Blueprint>>> getAll() { ... }
+
+@PreAuthorize("hasAuthority('SCOPE_blueprints.write')")
+@PostMapping
+public ResponseEntity<ApiResponse<?>> add(@Valid @RequestBody NewBlueprintRequest req) { ... }
+
+@PreAuthorize("hasAuthority('SCOPE_blueprints.write')")
+@PutMapping("/{author}/{bpname}/points")
+public ResponseEntity<ApiResponse<?>> addPoint(...) { ... }
+```
+
+#### Resultados esperados
+ Usuario | Petición | Resultado esperado | Resultado obtenido |
+|---|---|---|---|
+| `student` | `GET /api/blueprints` | 200 | 200 |
+| `student` | `POST /api/blueprints` | 403 | 403 |
+| `assistant` | `POST /api/blueprints` | 200/201 | 201 |
+
+#### Evidencias
+
+Usamos primero las credenciales de student, usamos jwt.io para verificar sus claims y verificar que solo tiene el scope de lectura
+
+![](docs/img/student.png)
+
+Luego probamos con el endpoint de GET en blueprints. Dando como resultado una respuesta HTTP 200
+
+![](docs/img/studentGet.png)
+
+Y al momento de probar con el endpoint de POST, nos damos cuenta que funcionan los scopes ya que nos arroja un error 403 por acceso no autorizado
+
+![](docs/img/studentPost.png)
+
+Luego pasamos a probar el usuario assistand, en el que como definimos antes, tiene ambos scopes.
+
+![](docs/img/assistant.png)
+
+por último, para probarlo, en el metodo POST donde el usuario student no pudo usar, este nos da una respuesta exitosa.
+
+![](docs/img/assistantPost.png)
 4. Modificar el tiempo de expiración del token y observar el efecto.
 5. Documentar en Swagger los endpoints de autenticación y de negocio.
